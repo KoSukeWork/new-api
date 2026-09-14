@@ -1,8 +1,12 @@
 package router
 
 import (
+	"os"
+	"strings"
+
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 
 	// Import oauth package to register providers via init()
@@ -19,6 +23,7 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(middleware.AccessTokenAudit())
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
+	registerCodexMonitorBridgeRoutes(apiRouter)
 	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
@@ -424,4 +429,25 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
 	}
+}
+
+func registerCodexMonitorBridgeRoutes(apiRouter *gin.RouterGroup) {
+	registerCodexMonitorBridgeRoutesWithRefresher(apiRouter, service.RefreshCodexChannelCredential)
+}
+
+func registerCodexMonitorBridgeRoutesWithRefresher(
+	apiRouter *gin.RouterGroup,
+	refreshCredential controller.CodexMonitorBridgeCredentialRefreshFunc,
+) {
+	manifestPath := strings.TrimSpace(os.Getenv("CODEX_MONITOR_BRIDGE_TOKEN_HASH_FILE"))
+	if manifestPath == "" {
+		return
+	}
+
+	verifier := middleware.NewCodexMonitorBridgeTokenVerifier(manifestPath)
+	bridge := apiRouter.Group("/integration/codex-monitor/v1")
+	bridge.Use(middleware.DisableCache(), verifier.Middleware())
+	bridge.GET("/catalog", controller.GetCodexMonitorBridgeCatalog)
+	bridge.GET("/events", controller.GetCodexMonitorBridgeEvents)
+	bridge.GET("/channels/:id/snapshot", controller.NewCodexMonitorBridgeSnapshotHandler(refreshCredential))
 }
