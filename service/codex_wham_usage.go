@@ -19,6 +19,28 @@ func FetchCodexWhamUsage(
 	accessToken string,
 	accountID string,
 ) (statusCode int, body []byte, err error) {
+	return fetchCodexWhamUsage(ctx, client, baseURL, accessToken, accountID, 0)
+}
+
+func FetchCodexWhamUsageLimited(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	accessToken string,
+	accountID string,
+	maximumResponseBytes int64,
+) (statusCode int, body []byte, err error) {
+	return fetchCodexWhamUsage(ctx, client, baseURL, accessToken, accountID, maximumResponseBytes)
+}
+
+func fetchCodexWhamUsage(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	accessToken string,
+	accountID string,
+	maximumResponseBytes int64,
+) (statusCode int, body []byte, err error) {
 	if client == nil {
 		return 0, nil, fmt.Errorf("nil http client")
 	}
@@ -47,7 +69,7 @@ func FetchCodexWhamUsage(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = readCodexWhamResponseBody(resp.Body, maximumResponseBytes)
 	if err != nil {
 		return resp.StatusCode, nil, err
 	}
@@ -60,6 +82,28 @@ func FetchCodexWhamRateLimitResetCredits(
 	baseURL string,
 	accessToken string,
 	accountID string,
+) (statusCode int, body []byte, err error) {
+	return fetchCodexWhamRateLimitResetCredits(ctx, client, baseURL, accessToken, accountID, 0)
+}
+
+func FetchCodexWhamRateLimitResetCreditsLimited(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	accessToken string,
+	accountID string,
+	maximumResponseBytes int64,
+) (statusCode int, body []byte, err error) {
+	return fetchCodexWhamRateLimitResetCredits(ctx, client, baseURL, accessToken, accountID, maximumResponseBytes)
+}
+
+func fetchCodexWhamRateLimitResetCredits(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	accessToken string,
+	accountID string,
+	maximumResponseBytes int64,
 ) (statusCode int, body []byte, err error) {
 	if client == nil {
 		return 0, nil, fmt.Errorf("nil http client")
@@ -89,7 +133,7 @@ func FetchCodexWhamRateLimitResetCredits(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = readCodexWhamResponseBody(resp.Body, maximumResponseBytes)
 	if err != nil {
 		return resp.StatusCode, nil, err
 	}
@@ -144,7 +188,7 @@ func ConsumeCodexWhamRateLimitResetCredit(
 	}
 	defer resp.Body.Close()
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = readCodexWhamResponseBody(resp.Body, 0)
 	if err != nil {
 		return resp.StatusCode, nil, err
 	}
@@ -158,4 +202,18 @@ func setCodexWhamRequestHeaders(req *http.Request, accessToken string, accountID
 	if req.Header.Get("originator") == "" {
 		req.Header.Set("originator", "codex_cli_rs")
 	}
+}
+
+func readCodexWhamResponseBody(reader io.Reader, maximumResponseBytes int64) ([]byte, error) {
+	if maximumResponseBytes <= 0 {
+		return io.ReadAll(reader)
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maximumResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > maximumResponseBytes {
+		return nil, fmt.Errorf("codex wham response exceeds %d bytes", maximumResponseBytes)
+	}
+	return body, nil
 }
