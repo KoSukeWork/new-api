@@ -79,6 +79,7 @@ type codexMonitorBridgeSnapshot struct {
 	CapturedAt          int64    `json:"captured_at"`
 	ChannelID           int      `json:"channel_id"`
 	AccountRef          string   `json:"account_ref"`
+	Email               string   `json:"email,omitempty"`
 	Usage               any      `json:"usage"`
 	ResetCredits        any      `json:"reset_credits,omitempty"`
 	UsageUpstreamStatus int      `json:"usage_upstream_status"`
@@ -375,6 +376,12 @@ func getCodexMonitorBridgeSnapshot(c *gin.Context, refreshCredential CodexMonito
 		writeCodexMonitorBridgeError(c, http.StatusBadGateway, "invalid_usage_response")
 		return
 	}
+	email := ""
+	if payload, ok := usagePayload.(map[string]any); ok {
+		if candidate, ok := payload["email"].(string); ok && maskCodexMonitorBridgeEmail(candidate) != "" {
+			email = strings.TrimSpace(candidate)
+		}
+	}
 	sanitizeCodexMonitorBridgePayload(usagePayload)
 
 	result := codexMonitorBridgeSnapshot{
@@ -382,6 +389,7 @@ func getCodexMonitorBridgeSnapshot(c *gin.Context, refreshCredential CodexMonito
 		CapturedAt:          time.Now().Unix(),
 		ChannelID:           channelID,
 		AccountRef:          accountRef,
+		Email:               email,
 		Usage:               usagePayload,
 		UsageUpstreamStatus: usageStatus,
 		PartialErrors:       []string{},
