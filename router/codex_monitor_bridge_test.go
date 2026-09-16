@@ -65,11 +65,11 @@ func TestCodexMonitorBridgeContract(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	baseURL := upstream.URL
 	validKey, err := common.Marshal(map[string]string{
-		"access_token": "upstream-access-secret", "account_id": "account-secret", "email": "owner@example.com",
+		"access_token": "upstream-access-secret", "account_id": "account-secret", "email": "credential@example.com",
 	})
 	require.NoError(t, err)
 	secondKey, err := common.Marshal(map[string]string{
-		"access_token": "second-access-secret", "account_id": "account-secret", "email": "owner@example.com",
+		"access_token": "second-access-secret", "account_id": "account-secret", "email": "credential@example.com",
 	})
 	require.NoError(t, err)
 	require.NoError(t, database.Create(&[]model.Channel{
@@ -94,7 +94,7 @@ func TestCodexMonitorBridgeContract(t *testing.T) {
 		assert.Contains(t, body, `"id":11`)
 		assert.Contains(t, body, `"unsupported_reason":"invalid_credential"`)
 		assert.Contains(t, body, `"unsupported_reason":"multi_key_channel"`)
-		assert.Contains(t, body, "o***@example.com")
+		assert.Contains(t, body, "c***@example.com")
 		assert.NotContains(t, body, "account-secret")
 		assert.NotContains(t, body, "upstream-access-secret")
 		assert.NotContains(t, body, upstream.URL)
@@ -188,6 +188,13 @@ func TestCodexMonitorBridgeContract(t *testing.T) {
 	t.Run("snapshot returns usage when reset credits fail", func(t *testing.T) {
 		response := bridgeTestRequest(engine, "/api/integration/codex-monitor/v1/channels/11/snapshot", "Bearer "+newToken)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		var snapshot struct {
+			Email string         `json:"email"`
+			Usage map[string]any `json:"usage"`
+		}
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &snapshot))
+		assert.Equal(t, "owner@example.com", snapshot.Email)
+		assert.Equal(t, "o***@example.com", snapshot.Usage["email"])
 		assert.Contains(t, response.Body.String(), `"used_percent":42`)
 		assert.Contains(t, response.Body.String(), `"partial":true`)
 		assert.Contains(t, response.Body.String(), "reset_credits_unavailable")
